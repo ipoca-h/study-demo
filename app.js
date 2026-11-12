@@ -21,6 +21,10 @@ const CONFIG = {
   // Per-image overrides, keyed by file path, e.g.
   // "stimuli/plain.jpg": { x: 0.55, y: 0.30, w: 0.15, h: 0.12 }
   aoiByFile: {},
+
+  // OPTIONAL: automatic upload of each participant's results to your own Google Sheet.
+  // Paste the Web App URL from Google Apps Script here (see instructions); leave "" to disable.
+  uploadUrl: "https://script.google.com/macros/s/AKfycbwgvVfnK_goifTE3HDVRcH-7JtH4e6XwijZsK80DpnbPh53e1f3t_27fLC68bPcWR1I/exec",
 };
 /* =============================================================== */
 
@@ -346,6 +350,35 @@ function rawRows() {
   return rows;
 }
 
+/* ---------- Optional upload to a Google Sheet ---------- */
+async function uploadResults(summaryRows, rawRowsArr) {
+  if (!CONFIG.uploadUrl) return;
+  let el = document.getElementById("upload-status");
+  if (!el) {
+    el = document.createElement("p");
+    el.id = "upload-status";
+    el.style.fontWeight = "600";
+    $("summary-table").insertAdjacentElement("afterend", el);
+  }
+  el.textContent = "Sending your results...";
+  const stamp = new Date().toISOString();
+  const addStamp = (rows) => rows.map((r) => Object.assign({ submitted_at: stamp }, r));
+  try {
+    // text/plain avoids a CORS pre-flight; Apps Script reads the body as JSON.
+    await fetch(CONFIG.uploadUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ summary: addStamp(summaryRows), raw: addStamp(rawRowsArr) }),
+    });
+    el.style.color = "#1b7f3b";
+    el.textContent = "Results sent. Thank you! (You can also download copies below.)";
+  } catch (e) {
+    el.style.color = "#b00020";
+    el.textContent = "Could not send results automatically. Please use the download buttons and email the files to the researcher.";
+  }
+}
+
 /* ---------- Main flow ---------- */
 async function main() {
   const order = CONFIG.stimuli.map((s, i) => i);
@@ -367,9 +400,10 @@ async function main() {
   $("btn-dl-summary").onclick = () => download(`${participant}_summary.csv`, toCSV(summary));
   $("btn-dl-raw").onclick = () => download(`${participant}_raw_gaze.csv`, toCSV(rawRows()));
   show("done");
+  uploadResults(summary, rawRows());
 }
 
-const APP_VERSION = "v7";
+const APP_VERSION = "v8";
 
 // Small version label, bottom-left, so you can confirm the latest app.js is live
 (function () {
