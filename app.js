@@ -369,10 +369,32 @@ async function main() {
   show("done");
 }
 
+const APP_VERSION = "v7";
+
+// Small version label, bottom-left, so you can confirm the latest app.js is live
+(function () {
+  const v = document.createElement("div");
+  v.textContent = "app.js " + APP_VERSION;
+  v.style.cssText = "position:fixed;left:8px;bottom:6px;font:11px system-ui;color:#777;z-index:2147483646;pointer-events:none";
+  document.body.appendChild(v);
+})();
+
 function showError(msg) {
   console.error(msg);
   const el = $("err");
   if (el) el.textContent = msg;
+  // Floating banner so errors are visible on every screen, not just the start screen
+  let b = document.getElementById("err-banner");
+  if (!b) {
+    b = document.createElement("div");
+    b.id = "err-banner";
+    b.style.cssText = "position:fixed;left:50%;top:10px;transform:translateX(-50%);max-width:80%;background:#b00020;color:#fff;" +
+      "padding:10px 16px;border-radius:6px;font:14px system-ui;z-index:2147483647;cursor:pointer";
+    b.title = "Click to dismiss";
+    b.onclick = () => b.remove();
+    document.body.appendChild(b);
+  }
+  b.textContent = msg;
 }
 
 // Any uncaught error shows on the start screen instead of failing silently
@@ -408,4 +430,6 @@ $("btn-start").onclick = async () => {
 if (typeof webgazer === "undefined") {
   showError("WebGazer has not loaded yet (check your connection or upload webgazer.js).");
 }
-$("btn-setup-done").onclick = () => main();
+$("btn-setup-done").onclick = async () => {
+  try { await main(); } catch (e) { showError("Study error: " + (e && e.message ? e.message : e)); }
+};
