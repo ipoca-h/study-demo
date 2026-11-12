@@ -41,15 +41,43 @@ let validationError = null;
 const trials = [];              // finished trial data
 
 /* ---------- WebGazer set-up ---------- */
+// Run one WebGazer call; a failure in an optional step is logged, not fatal
+function tryStep(name, fn, fatal) {
+  try {
+    return fn();
+  } catch (e) {
+    console.warn("WebGazer step failed: " + name, e);
+    if (fatal) throw new Error(name + ": " + (e && e.message ? e.message : e));
+  }
+}
+
 async function startWebgazer() {
-  webgazer.setGazeListener((data) => {
+  tryStep("setGazeListener", () => webgazer.setGazeListener((data) => {
     if (data && collector) collector({ x: data.x, y: data.y, t: now() });
-  });
-  if (typeof webgazer.saveDataAcrossSessions === "function") webgazer.saveDataAcrossSessions(false);
-  await webgazer.begin();
-  if (typeof webgazer.applyKalmanFilter === "function") webgazer.applyKalmanFilter(true);
-  if (typeof webgazer.showVideoPreview === "function") webgazer.showVideoPreview(true);
-  if (typeof webgazer.showPredictionPoints === "function") webgazer.showPredictionPoints(DEBUG);
+  }), true);
+  if (typeof webgazer.saveDataAcrossSessions === "function")
+    tryStep("saveDataAcrossSessions", () => webgazer.saveDataAcrossSessions(false));
+
+  // begin() is NOT awaited: WebGazer returns itself, not a promise, and awaiting it
+  // can break. We pass a failure callback and wait until WebGazer reports it is ready.
+  let failed = null;
+  tryStep("begin", () => webgazer.begin((err) => { failed = err || new Error("camera/model failed"); }), true);
+
+  const t0 = now();
+  while (true) {
+    if (failed) throw new Error("begin failed: " + (failed.message || failed));
+    const ready = typeof webgazer.isReady === "function" ? webgazer.isReady() : true;
+    if (ready) break;
+    if (now() - t0 > 25000) throw new Error("WebGazer did not become ready in 25 s");
+    await sleep(250);
+  }
+
+  if (typeof webgazer.applyKalmanFilter === "function")
+    tryStep("applyKalmanFilter", () => webgazer.applyKalmanFilter(true));
+  if (typeof webgazer.showVideoPreview === "function")
+    tryStep("showVideoPreview", () => webgazer.showVideoPreview(true));
+  if (typeof webgazer.showPredictionPoints === "function")
+    tryStep("showPredictionPoints", () => webgazer.showPredictionPoints(DEBUG));
 }
 
 /* ---------- Calibration ---------- */
