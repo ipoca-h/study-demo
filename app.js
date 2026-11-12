@@ -51,8 +51,12 @@ function tryStep(name, fn, fatal) {
   }
 }
 
+const gazeStats = { callbacks: 0, withData: 0, lastDataAt: 0 };
+
 async function startWebgazer() {
   tryStep("setGazeListener", () => webgazer.setGazeListener((data) => {
+    gazeStats.callbacks++;
+    if (data) { gazeStats.withData++; gazeStats.lastDataAt = now(); }
     if (data && collector) collector({ x: data.x, y: data.y, t: now() });
   }), true);
   if (typeof webgazer.saveDataAcrossSessions === "function")
@@ -61,7 +65,13 @@ async function startWebgazer() {
   // begin() is NOT awaited: WebGazer returns itself, not a promise, and awaiting it
   // can break. We pass a failure callback and wait until WebGazer reports it is ready.
   let failed = null;
-  tryStep("begin", () => webgazer.begin((err) => { failed = err || new Error("camera/model failed"); }), true);
+  tryStep("begin", () => {
+    const p = webgazer.begin(() => { /* detail arrives via the rejection below */ });
+    // begin() returns a promise that rejects with the real error (e.g. face model files missing)
+    if (p && typeof p.then === "function") {
+      p.then(null, (err) => { failed = err || new Error("camera/model failed"); });
+    }
+  }, true);
 
   const t0 = now();
   while (true) {
@@ -76,8 +86,42 @@ async function startWebgazer() {
     tryStep("applyKalmanFilter", () => webgazer.applyKalmanFilter(true));
   if (typeof webgazer.showVideoPreview === "function")
     tryStep("showVideoPreview", () => webgazer.showVideoPreview(true));
+  if (typeof webgazer.showFaceOverlay === "function")
+    tryStep("showFaceOverlay", () => webgazer.showFaceOverlay(true));
+  if (typeof webgazer.showFaceFeedbackBox === "function")
+    tryStep("showFaceFeedbackBox", () => webgazer.showFaceFeedbackBox(true));
   if (typeof webgazer.showPredictionPoints === "function")
     tryStep("showPredictionPoints", () => webgazer.showPredictionPoints(DEBUG));
+}
+
+// Live "is the face being tracked?" check on the camera-setup screen
+function monitorFaceTracking() {
+  const status = $("face-status");
+  const btn = $("btn-setup-done");
+  btn.disabled = true;
+  const started = now();
+  const timer = setInterval(() => {
+    if (!$("setup").classList.contains("active")) { clearInterval(timer); return; }
+    const recent = gazeStats.lastDataAt && now() - gazeStats.lastDataAt < 1500;
+    const waited = Math.round((now() - started) / 1000);
+    if (recent) {
+      status.style.color = "#1b7f3b";
+      status.textContent = "Face detected. Tracking is working.";
+      btn.disabled = false;
+    } else if (gazeStats.callbacks === 0 && waited > 10) {
+      status.style.color = "#b00020";
+      status.textContent =
+        "WebGazer is not producing any output after " + waited + " s. The face-tracking model may have failed to load " +
+        "(check your internet connection, disable ad-blockers/VPN, then reload). Press F12 and look at the Console for red errors.";
+    } else if (waited > 10) {
+      status.style.color = "#b00020";
+      status.textContent =
+        "No face is being detected. Face the screen, sit about an arm's length away, light your face from the front, and remove anything covering your face.";
+    } else {
+      status.style.color = "#555";
+      status.textContent = "Looking for your face...";
+    }
+  }, 500);
 }
 
 /* ---------- Calibration ---------- */
@@ -351,6 +395,7 @@ $("btn-start").onclick = async () => {
     return;
   }
   show("setup");
+  monitorFaceTracking();
 };
 
 if (typeof webgazer === "undefined") {
