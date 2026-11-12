@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaze study</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #f4f1ea; color: #222;
+    font-family: system-ui, sans-serif; overflow: hidden; }
+  .screen { display: none; position: fixed; inset: 0; align-items: center;
+    justify-content: center; flex-direction: column; text-align: center; padding: 24px; }
+  .screen.active { display: flex; }
+  .card { max-width: 640px; line-height: 1.5; }
+  button { font-size: 1rem; padding: 10px 22px; margin: 6px; border: 0;
+    border-radius: 6px; background: #1f4e79; color: #fff; cursor: pointer; }
+  button.secondary { background: #777; }
+  input[type=text] { font-size: 1rem; padding: 8px; width: 220px; }
+  .cal-dot { position: fixed; width: 34px; height: 34px; border-radius: 50%;
+    background: #c0392b; border: 3px solid #fff; transform: translate(-50%, -50%);
+    cursor: pointer; opacity: 0.35; padding: 0; margin: 0; z-index: 2147483647; }
+  /* Keep WebGazer's camera preview from blocking clicks on calibration dots */
+  #webgazerVideoContainer, #webgazerVideoFeed, #webgazerFaceOverlay, #webgazerFaceFeedbackBox {
+    pointer-events: none !important; }
+  #webgazerVideoContainer { opacity: 0.7 !important; }
+  #val-dot { position: fixed; width: 22px; height: 22px; border-radius: 50%;
+    background: #1f4e79; transform: translate(-50%, -50%); display: none; }
+  #trial { background: #d9d6ce; cursor: none; }
+  #stim { display: block; }
+  #aoi-box { position: fixed; border: 2px dashed red; display: none; pointer-events: none; }
+  #fixation { font-size: 48px; }
+  table { border-collapse: collapse; margin: 12px auto; font-size: 0.9rem; }
+  td, th { border: 1px solid #aaa; padding: 4px 10px; }
+  .small { font-size: 0.85rem; color: #555; }
+</style>
+</head>
+<body>
+
+<div id="intro" class="screen active">
+  <div class="card">
+    <h2>Viewing study</h2>
+    <p>You will see a few images. Just look at each one naturally.
+       First the webcam needs to be set up and calibrated (about 2 minutes).</p>
+    <p class="small">Your webcam video is processed in your browser only and is never recorded or uploaded.
+       Only gaze coordinates are saved.</p>
+    <p>Participant ID: <input id="pid" type="text" placeholder="e.g. P01"></p>
+    <button id="btn-start">Start (allow webcam)</button>
+    <p id="err" style="color:#b00020;font-weight:600"></p>
+  </div>
+</div>
+
+<div id="setup" class="screen">
+  <div class="card">
+    <h2>Camera setup</h2>
+    <p>Check the video preview shows your face, well lit from the front (no window behind you).
+       Sit about an arm's length from the screen and keep your head fairly still for the whole study.</p>
+    <button id="btn-setup-done">My face is detected, continue</button>
+  </div>
+</div>
+
+<div id="calibration" class="screen">
+  <div class="card" style="position:absolute;top:30%">
+    <p>Look at each red dot and click it <span id="clicks-needed"></span> times.
+       Keep looking at the dot while you click.</p>
+  </div>
+</div>
+
+<div id="validation" class="screen">
+  <div id="val-msg" class="card">Keep looking at each blue dot.</div>
+  <div id="val-dot"></div>
+</div>
+
+<div id="result" class="screen">
+  <div class="card">
+    <h2>Calibration check</h2>
+    <p id="val-result"></p>
+    <button id="btn-recal" class="secondary">Recalibrate</button>
+    <button id="btn-go">Continue to study</button>
+  </div>
+</div>
+
+<div id="trial" class="screen">
+  <div id="fixation">+</div>
+  <img id="stim" alt="" style="display:none">
+  <div id="aoi-box"></div>
+</div>
+
+<div id="done" class="screen">
+  <div class="card" style="max-width:900px">
+    <h2>Finished, thank you</h2>
+    <div id="summary-table"></div>
+    <button id="btn-dl-summary">Download summary CSV</button>
+    <button id="btn-dl-raw">Download raw gaze CSV</button>
+  </div>
+</div>
+
+<!-- Use a copy of webgazer.js uploaded next to this file; fall back to the Brown site -->
+<script src="webgazer.js"></script>
+<script>
+  if (typeof webgazer === "undefined") {
+    document.write('<script src="https://webgazer.cs.brown.edu/webgazer.js"><\/script>');
+  }
+</script>
+<script src="app.js"></script>
+</body>
+</html>
