@@ -94,29 +94,36 @@ async function startWebgazer() {
     tryStep("showPredictionPoints", () => webgazer.showPredictionPoints(DEBUG));
 }
 
+// Is a face currently being tracked? (Gaze output stays empty until calibration,
+// so we ask the face tracker itself, not the gaze listener.)
+function faceFound() {
+  try {
+    const tr = webgazer.getTracker && webgazer.getTracker();
+    const pos = tr && tr.getPositions && tr.getPositions();
+    return !!(pos && pos.length > 0);
+  } catch (e) {
+    return false;
+  }
+}
+
 // Live "is the face being tracked?" check on the camera-setup screen
 function monitorFaceTracking() {
   const status = $("face-status");
   const btn = $("btn-setup-done");
-  btn.disabled = true;
+  if (btn) btn.disabled = false;   // never trap the participant; we only warn
+  if (!status) return;
   const started = now();
   const timer = setInterval(() => {
     if (!$("setup").classList.contains("active")) { clearInterval(timer); return; }
-    const recent = gazeStats.lastDataAt && now() - gazeStats.lastDataAt < 1500;
     const waited = Math.round((now() - started) / 1000);
-    if (recent) {
+    if (faceFound()) {
       status.style.color = "#1b7f3b";
-      status.textContent = "Face detected. Tracking is working.";
-      btn.disabled = false;
-    } else if (gazeStats.callbacks === 0 && waited > 10) {
+      status.textContent = "Face detected. You can continue.";
+    } else if (waited > 8) {
       status.style.color = "#b00020";
       status.textContent =
-        "WebGazer is not producing any output after " + waited + " s. The face-tracking model may have failed to load " +
-        "(check your internet connection, disable ad-blockers/VPN, then reload). Press F12 and look at the Console for red errors.";
-    } else if (waited > 10) {
-      status.style.color = "#b00020";
-      status.textContent =
-        "No face is being detected. Face the screen, sit about an arm's length away, light your face from the front, and remove anything covering your face.";
+        "No face detected yet. Face the screen, sit about an arm's length away, light your face from the front, " +
+        "and remove anything covering your face. You can still continue, but tracking will not work until your face is found.";
     } else {
       status.style.color = "#555";
       status.textContent = "Looking for your face...";
